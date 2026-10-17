@@ -165,7 +165,7 @@ input[type=range]::-moz-range-thumb{width:8px;height:13px;background:var(--pink)
 .viz-sky{
   position:absolute;left:0;right:0;top:0;bottom:32%;z-index:1;
   background:
-    radial-gradient(circle at 50% 57%,rgba(255,115,180,.50),transparent 36%),
+    radial-gradient(circle 200px at 50% 57%,rgba(255,110,180,.52),transparent 100%),
     radial-gradient(ellipse 70% 55% at 50% 92%,rgba(255,90,160,.42),transparent 70%),
     radial-gradient(ellipse 120% 80% at 50% 108%,rgba(140,40,190,.30),transparent 72%),
     linear-gradient(180deg,#08020f 0%,#150626 34%,#320b42 64%,#5c1357 86%,#8d2a75 100%);
@@ -181,19 +181,11 @@ input[type=range]::-moz-range-thumb{width:8px;height:13px;background:var(--pink)
   transform:translateX(-50%);
   height:60%;aspect-ratio:1/1;
   border-radius:50%;overflow:hidden;z-index:2;
-  box-shadow:0 0 30px rgba(255,70,140,.42);
 }
 .viz-sun svg{display:block;width:100%;height:100%}
-#sunBars{ animation:sunBars 1.5s linear infinite; }
-@keyframes sunBars{from{transform:translateY(0)}to{transform:translateY(6px)}}
-
-.viz-sun::after{
-  content:'';position:absolute;left:-20%;right:-20%;height:30%;top:-30%;
-  background:linear-gradient(180deg,transparent,rgba(255,240,205,.26) 50%,transparent);
-  animation:sunSweep 2.8s linear infinite;
-  will-change:transform;
-}
-@keyframes sunSweep{from{transform:translateY(0)}to{transform:translateY(500%)}}
+/* 条纹周期 10 单位，位移 10 单位 => 无缝连续下流 */
+#sunBars{ animation:sunBars 2.4s linear infinite; will-change:transform; }
+@keyframes sunBars{from{transform:translateY(0)}to{transform:translateY(10px)}}
 
 /* ---------- 远山 ---------- */
 .viz-mtn{

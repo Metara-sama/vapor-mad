@@ -104,8 +104,7 @@
   function ac() {
     if (!S.ctx) {
       var AC = window.AudioContext || window.webkitAudioContext;
-      try { S.ctx = new AC({ latencyHint: 'playback' }); }
-      catch (e) { S.ctx = new AC(); }
+      S.ctx = new AC();
       AU.ctxRef = S.ctx;
       S.master = S.ctx.createGain();
       S.master.gain.value = parseFloat(el.masterVol.value);
@@ -132,49 +131,54 @@
   /* ---------------- 播放调度 ---------------- */
   function scheduleNote(ctx, n, sm, dest, t0, from, collect) {
     var buf = sm.buffer;
+    if (!buf || !buf.duration) return;
     var ratio = Math.pow(2, (n.pitch - sm.base) / 12) * (sm.rate || 1);
+    if (!isFinite(ratio) || ratio <= 0) return;
+
     var startMusic = n.start > from ? n.start : from;
     if (startMusic >= n.end) return;
-    var skip = startMusic - n.start;
     var when = t0 + (startMusic - from);
-    if (ctx.currentTime && when < ctx.currentTime - 0.22) return;
-    var dur = n.end - startMusic;
-    if (dur < 0.012) dur = 0.012;
+    if (when < ctx.currentTime - 0.15) return;
 
-    var off = skip * ratio;
+    var dur = n.end - startMusic;
+    if (!isFinite(dur) || dur <= 0) return;
+    if (dur > 8) dur = 8;
+    if (dur < 0.03) dur = 0.03;
+
+    var off = (startMusic - n.start) * ratio;
+    if (!isFinite(off) || off < 0) off = 0;
     if (off >= buf.duration) return;
 
     var src = ctx.createBufferSource();
     src.buffer = buf;
     src.playbackRate.value = ratio;
 
-    var avail = buf.duration - off;
-    var bufDur = Math.min(dur * ratio, avail);
-    if (bufDur <= 0.001) return;
+    var gn = ctx.createGain();
+    var peak = Math.pow(clamp(n.vel, 1, 127) / 127, 1.15) * 0.62;
+    var atk = Math.min(0.006, dur * 0.25);
+    var rel = Math.min(0.09, dur * 0.45);
+    var sus = Math.max(atk, dur - rel);
 
-    var realDur = Math.min(dur, bufDur / ratio);
-    if (realDur < 0.012) realDur = 0.012;
+    gn.gain.setValueAtTime(0, when);
+    gn.gain.linearRampToValueAtTime(peak, when + atk);
+    gn.gain.setValueAtTime(peak, when + sus);
+    gn.gain.linearRampToValueAtTime(0, when + dur + 0.015);
 
-    var g = ctx.createGain();
-    var peak = Math.pow(clamp(n.vel, 1, 127) / 127, 1.15) * 0.78;
-    var atk = Math.min(0.008, realDur * 0.3);
-    var rel = Math.min(0.07, realDur * 0.5);
-    var sus = Math.max(atk, realDur - rel);
+    src.connect(gn);
+    gn.connect(dest);
 
-    g.gain.setValueAtTime(0, when);
-    g.gain.linearRampToValueAtTime(peak, when + atk);
-    g.gain.setValueAtTime(peak, when + sus);
-    g.gain.linearRampToValueAtTime(0, when + realDur);
-
-    src.connect(g);
-    g.connect(dest);
-
-    try { src.start(when, off, Math.min(bufDur, realDur * ratio + 0.012)); } catch (e) { return; }
+    try {
+      src.start(when, off);
+      src.stop(when + dur + 0.04);
+    } catch (e) {
+      try { gn.disconnect(); } catch (e2) { }
+      return;
+    }
 
     if (collect) {
       S.nodes.add(src);
       src.onended = function () {
-        try { g.disconnect(); } catch (e) { }
+        try { gn.disconnect(); } catch (e) { }
         try { src.disconnect(); } catch (e) { }
         S.nodes.delete(src);
       };
@@ -328,7 +332,7 @@
     if (!S.playing || !S.ctx) return;
     var ctx = S.ctx;
     var musicNow = S.startMusic + (ctx.currentTime - S.startCtx);
-    var budget = 140;
+    var budget = 220;
     var target = musicNow + 2.5;
 
     for (var i = 0; i < S.tracks.length; i++) {
@@ -663,22 +667,20 @@
     var key = gmKeyOf(t.program);
     var inst = GM[key];
     if (!inst || !inst.ready) return null;
-    if (t._gmKey === key && t._gmBase != null && inst.buf[t._gmBase]) {
-      return { buffer: inst.buf[t._gmBase], base: t._gmBase };
-    }
-    var n = t.notes;
     var mid = 60;
-    if (n && n.length) mid = n[Math.floor(n.length / 2)].pitch;
-    var best = inst.bases[0], bd = 1e9;
-    for (var i = 0; i < inst.bases.length; i++) {
-      if (!inst.buf[inst.bases[i]]) continue;
-      var d = Math.abs(inst.bases[i] - mid);
-      if (d < bd) { bd = d; best = inst.bases[i]; }
+    if (t.notes && t.notes.length) mid = t.notes[Math.floor(t.notes.length / 2)].pitch;
+    if (t._gmKey !== key || !t._gmBase || !inst.buf[t._gmBase]) {
+      var best = inst.bases[0], bd = 1e9;
+      for (var i = 0; i < inst.bases.length; i++) {
+        if (!inst.buf[inst.bases[i]]) continue;
+        var d = Math.abs(inst.bases[i] - mid);
+        if (d < bd) { bd = d; best = inst.bases[i]; }
+      }
+      t._gmKey = key;
+      t._gmBase = best;
     }
-    if (!inst.buf[best]) return null;
-    t._gmKey = key;
-    t._gmBase = best;
-    return { buffer: inst.buf[best], base: best };
+    if (!inst.buf[t._gmBase]) return null;
+    return { buffer: inst.buf[t._gmBase], base: t._gmBase };
   }
 
   function sourceName(t) {
@@ -907,22 +909,16 @@
 
 var lastVizT = 0;
 
-function drawViz() {
+var vizGradIdle = null, vizGradLive = null, vizGradH = -1;
+  function drawViz() {
     if (!vizCtx) return;
     var now = performance.now();
-    if (now - lastVizT < 30) return;
+    if (now - lastVizT < 40) return;
     lastVizT = now;
     var W = vizW, H = vizH, g = vizCtx, t = now;
     g.clearRect(0, 0, W, H);
 
     var baseY = H - 7;
-
-    g.lineWidth = 1;
-    g.strokeStyle = 'rgba(92,255,177,.05)';
-    for (var r = 1; r < 6; r++) {
-      var gy = H * r / 6;
-      g.beginPath(); g.moveTo(0, gy + .5); g.lineTo(W, gy + .5); g.stroke();
-    }
 
     var mag = 0;
     if (S.analyser && S.freqData) {
@@ -931,7 +927,7 @@ function drawViz() {
     }
     var idle = mag < 4;
 
-    var N = 80;
+    var N = 64;
     var xs = [], ys = [];
     for (var i = 0; i < N; i++) {
       var v;
@@ -948,9 +944,16 @@ function drawViz() {
       ys.push(baseY - v * (H * 0.84));
     }
 
-    var grad = g.createLinearGradient(0, 0, 0, H);
-    grad.addColorStop(0, idle ? 'rgba(92,255,177,.045)' : 'rgba(92,255,177,.20)');
-    grad.addColorStop(1, 'rgba(92,255,177,0)');
+    if (!vizGradIdle || vizGradH !== H) {
+      vizGradH = H;
+      vizGradIdle = g.createLinearGradient(0, 0, 0, H);
+      vizGradIdle.addColorStop(0, 'rgba(92,255,177,.045)');
+      vizGradIdle.addColorStop(1, 'rgba(92,255,177,0)');
+      vizGradLive = g.createLinearGradient(0, 0, 0, H);
+      vizGradLive.addColorStop(0, 'rgba(92,255,177,.20)');
+      vizGradLive.addColorStop(1, 'rgba(92,255,177,0)');
+    }
+    var grad = idle ? vizGradIdle : vizGradLive;
     g.beginPath();
     g.moveTo(0, baseY);
     for (var a = 0; a < N; a++) g.lineTo(xs[a], ys[a]);
