@@ -1,0 +1,17 @@
+# 大体积素材不入库
+media/*.mp4
+media/*.m4v
+media/*.mov
+media/*.webm
+media/*.mkv
+media/*.avi
+*.mp4
+*.m4v
+*.mov
+*.webm
+*.mkv
+
+# 系统
+.DS_Store
+Thumbs.db
+media/*.mid

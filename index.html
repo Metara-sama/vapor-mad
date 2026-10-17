@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0a0410">
+<title>音MAD / VAPOR</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230a0410'/><path d='M6 22l4 -14l6 12l4 -14l6 14' stroke='%23ff5fb8' stroke-width='2' fill='none'/></svg>">
+<link rel="stylesheet" href="css/style.css?v=16">
+</head>
+<body>
+
+<div class="bg-glow"></div>
+<div class="bg-grid"></div>
+
+<div class="app">
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-cn">音MAD</span>
+      <span class="brand-en">VAPOR SAMPLE</span>
+    </div>
+    <div class="transport">
+      <button id="btnPlay" class="tbtn" title="播放 / 暂停">▶</button>
+      <button id="btnStop" class="tbtn" title="停止">■</button>
+      <div class="clock">
+        <b id="clockCur">0:00.0</b>
+        <i>/</i>
+        <span id="clockDur">0:00.0</span>
+      </div>
+      <div class="volbox">
+        <span>VOL</span>
+        <input type="range" id="masterVol" min="0" max="1" step="0.01" value="0.95">
+      </div>
+      <button id="btnExport" class="tbtn wide" title="导出 WAV">EXPORT</button>
+    </div>
+  </header>
+
+  <div class="vizwrap">
+    <canvas id="viz"></canvas>
+    <div class="roll-tag" id="rollTag">NO SIGNAL</div>
+    <div class="viz-ruler"><b id="vizCur">0.0</b><i>s</i></div>
+  </div>
+
+  <nav class="tabbar">
+    <button class="tab active" data-tab="tracks">TRACKS</button>
+    <button class="tab" data-tab="samples">SAMPLES</button>
+    <span class="spacer"></span>
+    <label class="mini-drop" title="载入 MIDI">+ MIDI<input id="fileMidi" type="file" accept="*/*"></label>
+    <label class="mini-drop" title="载入音频 / 视频">+音频<input id="fileMp3" type="file" accept="*/*" multiple></label>
+  </nav>
+
+  <div class="lists">
+    <div class="list" id="trackList"></div>
+    <div class="list hide" id="sampleList"></div>
+  </div>
+
+</div>
+
+<!-- 轨道详情编辑 -->
+<div class="te" id="te">
+  <div class="te-head">
+    <span class="te-num" id="teNum">01</span>
+    <span class="te-dot" id="teDot"></span>
+    <input class="te-name" id="teName" type="text" spellcheck="false" autocomplete="off">
+    <span class="spacer"></span>
+    <button class="mini" id="teClose">✕</button>
+  </div>
+
+  <div class="te-ctl">
+    <select class="tr-sel" id="teSel"></select>
+    <input class="te-vol" id="teVol" type="range" min="0" max="1.6" step="0.01">
+    <button class="ms" id="teMute">M</button>
+    <button class="ms solo" id="teSolo">S</button>
+  </div>
+
+  <div class="te-tools">
+    <button class="tool" data-act="dn12">−12</button>
+    <button class="tool" data-act="dn1">−1</button>
+    <button class="tool" data-act="up1">+1</button>
+    <button class="tool" data-act="up12">+12</button>
+    <span class="tsep"></span>
+    <button class="tool" data-act="q4">1/4</button>
+    <button class="tool" data-act="q8">1/8</button>
+    <button class="tool" data-act="q16">1/16</button>
+    <button class="tool" data-act="snap">对齐</button>
+    <span class="tsep"></span>
+    <button class="tool" data-act="zoomout">−</button>
+    <button class="tool" data-act="zoomin">＋</button>
+    <span class="tsep"></span>
+    <button class="tool" data-act="del">删</button>
+    <button class="tool" data-act="undo">撤销</button>
+    <button class="tool danger" data-act="deltrack">删轨</button>
+  </div>
+
+  <div class="te-canvas">
+    <canvas id="piano"></canvas>
+  </div>
+
+  <div class="te-scrollwrap" id="teScrollWrap">
+    <input class="te-scroll" id="teScroll" type="range" min="0" max="1" step="0.001" value="0">
+  </div>
+
+  <div class="te-foot">
+    <span id="teInfo">—</span>
+    <span class="spacer"></span>
+    <span class="te-hint">拖音符改音高 · 右缘改长度 · 空白拖拽新建 · 选中后点删</span>
+  </div>
+</div>
+
+  <!-- 本机文件（宿主不支持文件选择器时的通道） -->
+  <div class="picker" id="picker">
+    <div class="pk-head">
+      <span class="pk-title">媒体库</span>
+      <span class="spacer"></span>
+      <button class="mini" id="pkClose">✕</button>
+    </div>
+    <div class="pk-list" id="pkList"></div>
+  </div>
+
+  <!-- 采样工作台 -->
+  <div class="wb" id="wb">
+  <div class="wb-head">
+    <span class="wb-jp">編集</span>
+    <span class="wb-name" id="wbName">—</span>
+    <span class="spacer"></span>
+    <button class="mini" id="wbUndo">UNDO</button>
+    <button class="mini" id="wbClose">✕</button>
+  </div>
+  <div class="wb-wavewrap">
+    <canvas id="wave"></canvas>
+    <div class="wb-sel" id="wbSel">—</div>
+  </div>
+  <div class="wb-rate-row">
+    <span>倍速</span>
+    <input type="range" id="wbRate" min="0.5" max="2" step="0.01" value="1">
+    <output id="wbRateVal">1.00x</output>
+  </div>
+  <div class="wb-ops" id="wbOps"></div>
+  <div class="wb-fx" id="wbFx"></div>
+  <div class="wb-foot">
+    <button class="mini" id="wbPreview">试听</button>
+    <button class="mini" id="wbRevert">还原</button>
+    <button class="mini danger" id="wbDelete">删除</button>
+    <span class="spacer"></span>
+    <button class="mini primary" id="wbApply">应用</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<div class="scan"></div>
+<div class="vig"></div>
+
+<script src="js/midi.js?v=16"></script>
+<script src="js/audio.js?v=16"></script>
+<script src="js/app.js?v=16"></script>
+</body>
+</html>
