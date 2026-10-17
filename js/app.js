@@ -104,7 +104,8 @@
   function ac() {
     if (!S.ctx) {
       var AC = window.AudioContext || window.webkitAudioContext;
-      S.ctx = new AC();
+      try { S.ctx = new AC({ latencyHint: 'playback' }); }
+      catch (e) { S.ctx = new AC(); }
       AU.ctxRef = S.ctx;
       S.master = S.ctx.createGain();
       S.master.gain.value = parseFloat(el.masterVol.value);
@@ -318,7 +319,7 @@
     S.schedTimer = setInterval(function () {
       if (!S.playing) return;
       try { schedNotes(); } catch (e) { }
-    }, 80);
+    }, 50);
     setPlayingUI(true);
   }
 
@@ -327,7 +328,7 @@
     if (!S.playing || !S.ctx) return;
     var ctx = S.ctx;
     var musicNow = S.startMusic + (ctx.currentTime - S.startCtx);
-    var budget = 700;
+    var budget = 140;
     var target = musicNow + 2.5;
 
     for (var i = 0; i < S.tracks.length; i++) {
@@ -904,78 +905,6 @@
     vizCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
-/* 陷日地平线背景（预渲染，只在尺寸变化时重建） */
-var bgCv = null, bgKey = '';
-
-function ensureVizBg(W, H) {
-  var key = Math.round(W) + 'x' + Math.round(H);
-  if (bgCv && bgKey === key) return bgCv;
-
-  var dpr = Math.min(window.devicePixelRatio || 1, 2);
-  var c = document.createElement('canvas');
-  c.width = Math.max(1, Math.round(W * dpr));
-  c.height = Math.max(1, Math.round(H * dpr));
-  var g = c.getContext('2d');
-  g.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-  var hy = H * 0.74;
-
-  var sky = g.createLinearGradient(0, 0, 0, hy);
-  sky.addColorStop(0, 'rgba(26,6,40,0)');
-  sky.addColorStop(0.55, 'rgba(118,22,84,0.26)');
-  sky.addColorStop(1, 'rgba(255,95,184,0.34)');
-  g.fillStyle = sky;
-  g.fillRect(0, 0, W, hy);
-
-  var cx = W / 2;
-  var cy = hy + H * 0.015;
-  var r = Math.min(W * 0.62, H * 0.92);
-  var sun = g.createLinearGradient(0, cy - r, 0, cy + r);
-  sun.addColorStop(0, 'rgba(255,246,180,0.95)');
-  sun.addColorStop(0.30, 'rgba(255,182,92,0.92)');
-  sun.addColorStop(0.62, 'rgba(255,95,184,0.82)');
-  sun.addColorStop(1, 'rgba(160,107,255,0.55)');
-  g.beginPath();
-  g.arc(cx, cy, r, 0, Math.PI * 2);
-  g.fillStyle = sun;
-  g.fill();
-
-  g.save();
-  g.beginPath();
-  g.arc(cx, cy, r, 0, Math.PI * 2);
-  g.clip();
-  g.fillStyle = 'rgba(8,2,14,0.40)';
-  var step = Math.max(9, H * 0.032);
-  for (var sy = cy - r; sy < cy + r; sy += step) {
-    var t = (sy - (cy - r)) / (2 * r);
-    g.fillRect(cx - r, sy, r * 2, step * (0.16 + t * 0.46));
-  }
-  g.restore();
-
-  g.fillStyle = 'rgba(4,1,9,0.94)';
-  g.fillRect(0, hy, W, H - hy);
-
-  g.strokeStyle = 'rgba(255,95,184,0.20)';
-  g.lineWidth = 1;
-  for (var i = 1; i <= 5; i++) {
-    var yy = hy + Math.pow(i / 5, 2) * (H - hy);
-    g.beginPath(); g.moveTo(0, yy + .5); g.lineTo(W, yy + .5); g.stroke();
-  }
-  for (var v = -5; v <= 5; v++) {
-    g.beginPath();
-    g.moveTo(cx + v * (W / 10) * 0.25, hy);
-    g.lineTo(cx + v * (W / 10) * 2.2, H);
-    g.stroke();
-  }
-
-  g.fillStyle = 'rgba(255,140,200,0.85)';
-  g.fillRect(0, hy, W, 1);
-
-  bgCv = c;
-  bgKey = key;
-  return c;
-}
-
 var lastVizT = 0;
 
 function drawViz() {
@@ -985,8 +914,6 @@ function drawViz() {
     lastVizT = now;
     var W = vizW, H = vizH, g = vizCtx, t = now;
     g.clearRect(0, 0, W, H);
-    var bgImg = ensureVizBg(W, H);
-    g.drawImage(bgImg, 0, 0, W, H);
 
     var baseY = H - 7;
 
