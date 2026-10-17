@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0a0410">
 <title>音MAD / VAPOR</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230a0410'/><path d='M6 22l4 -14l6 12l4 -14l6 14' stroke='%23ff5fb8' stroke-width='2' fill='none'/></svg>">
-<link rel="stylesheet" href="css/style.css?v=19">
+<link rel="stylesheet" href="css/style.css?v=20">
 </head>
 <body>
 
@@ -48,22 +48,24 @@
             <stop offset=".8" stop-color="#ff2f92"/>
             <stop offset="1" stop-color="#e12a92"/>
           </linearGradient>
-          <clipPath id="sunClip"><circle cx="100" cy="100" r="100"/></clipPath>
+          <mask id="sunMask">
+            <rect x="0" y="0" width="200" height="200" fill="#fff"/>
+            <g id="sunBars" fill="#000">
+              <rect x="-20" y="12" width="240" height="2.2"/>
+              <rect x="-20" y="21" width="240" height="2.6"/>
+              <rect x="-20" y="31" width="240" height="3.1"/>
+              <rect x="-20" y="42" width="240" height="3.7"/>
+              <rect x="-20" y="54" width="240" height="4.4"/>
+              <rect x="-20" y="68" width="240" height="5.2"/>
+              <rect x="-20" y="84" width="240" height="6.2"/>
+              <rect x="-20" y="103" width="240" height="7.4"/>
+              <rect x="-20" y="125" width="240" height="8.8"/>
+              <rect x="-20" y="150" width="240" height="10.5"/>
+              <rect x="-20" y="179" width="240" height="12.5"/>
+            </g>
+          </mask>
         </defs>
-        <circle cx="100" cy="100" r="100" fill="url(#sunG)"/>
-        <g clip-path="url(#sunClip)" fill="#12061f" opacity=".9">
-          <rect x="0" y="12" width="200" height="2.2"/>
-          <rect x="0" y="21" width="200" height="2.6"/>
-          <rect x="0" y="31" width="200" height="3.1"/>
-          <rect x="0" y="42" width="200" height="3.7"/>
-          <rect x="0" y="54" width="200" height="4.4"/>
-          <rect x="0" y="68" width="200" height="5.2"/>
-          <rect x="0" y="84" width="200" height="6.2"/>
-          <rect x="0" y="103" width="200" height="7.4"/>
-          <rect x="0" y="125" width="200" height="8.8"/>
-          <rect x="0" y="150" width="200" height="10.5"/>
-          <rect x="0" y="179" width="200" height="12.5"/>
-        </g>
+        <circle cx="100" cy="100" r="100" fill="url(#sunG)" mask="url(#sunMask)"/>
       </svg>
     </div>
     <div class="viz-mtn">
@@ -196,8 +198,8 @@
 <div class="scan"></div>
 <div class="vig"></div>
 
-<script src="js/midi.js?v=19"></script>
-<script src="js/audio.js?v=19"></script>
-<script src="js/app.js?v=19"></script>
+<script src="js/midi.js?v=20"></script>
+<script src="js/audio.js?v=20"></script>
+<script src="js/app.js?v=20"></script>
 </body>
 </html>
