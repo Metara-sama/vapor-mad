@@ -750,3 +750,18 @@ input[type=range]::-moz-range-thumb{width:8px;height:13px;background:var(--pink)
   .brand-cn{font-size:24px}
   .brand-en{font-size:8px}
 }
+
+
+/* ---------- 背景特效开关 ---------- */
+.tbtn.fx{
+  font-size:8px;letter-spacing:.16em;
+  border-color:rgba(160,107,255,.30);color:var(--violet);
+}
+.tbtn.fx.on{
+  color:#fff;border-color:var(--pink);
+  background:rgba(255,95,184,.14);
+}
+
+/* 关掉动效 */
+.vizwrap.nofx .viz-floor i,
+.vizwrap.nofx .viz-scan{ animation:none !important; }

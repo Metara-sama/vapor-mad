@@ -914,6 +914,8 @@ var lastVizT = 0;
      落日：canvas 绘制，扫描线用 destination-out 挖空 -> 透出背后天空
      ============================================================ */
   var sunCv = null, sunCtx = null, sunW = 0, sunH = 0, lastSunT = 0, sunGrad = null;
+  var FXV = localStorage.getItem('vm_fx') !== '0';
+  var sunDone = false;
 
   function drawSun(t) {
     if (!sunCv) {
@@ -952,15 +954,20 @@ var lastVizT = 0;
     g.fillStyle = sunGrad;
     g.fillRect(0, 0, W, H);
 
-    /* 扫描线：等距 20 条，offset 连续增长（取模周期）=> 无缝下流 */
-    var n = 20;
+    /* 扫描线：等距排布，粗细则由它当前所在的 y 决定
+       顶部极细 -> 底部粗带；offset 连续取模，循环点落在圆外，不跳变 */
+    var n = 14;
     var period = H / n;
-    var barH = period * 0.60;
-    var off = (t * 0.011) % period;
+    var off = (t * 0.010) % period;
 
     g.globalCompositeOperation = 'destination-out';
-    for (var y = -period; y < H + period; y += period) {
-      g.fillRect(0, y + off, W, barH);
+    for (var i = -1; i <= n; i++) {
+      var y = i * period + off;
+      var k = y / H;
+      if (k < 0) k = 0;
+      if (k > 1) k = 1;
+      var h = period * (0.075 + 0.655 * Math.pow(k, 1.45));
+      g.fillRect(0, y, W, h);
     }
     g.globalCompositeOperation = 'source-over';
     g.restore();
@@ -1695,7 +1702,12 @@ var vizGradIdle = null, vizGradLive = null, vizGradH = -1;
       }
     }
     drawViz();
-    if (performance.now() - lastSunT >= 50) { lastSunT = performance.now(); drawSun(lastSunT); }
+    if (FXV) {
+      if (performance.now() - lastSunT >= 50) { lastSunT = performance.now(); drawSun(lastSunT); }
+    } else if (!sunDone) {
+      drawSun(0);
+      sunDone = true;
+    }
     updateClock();
     requestAnimationFrame(loop);
   }
@@ -2177,6 +2189,25 @@ var vizGradIdle = null, vizGradLive = null, vizGradH = -1;
     stopPlayback(false);
   });
   el.exp.addEventListener('click', exportWav);
+
+  /* 背景特效开关 */
+  (function () {
+    var wrap = document.querySelector('.vizwrap');
+    var fb = document.getElementById('btnFx');
+    function sync() {
+      if (wrap) wrap.classList.toggle('nofx', !FXV);
+      if (fb) fb.classList.toggle('on', FXV);
+    }
+    sync();
+    if (fb) {
+      fb.addEventListener('click', function () {
+        FXV = !FXV;
+        try { localStorage.setItem('vm_fx', FXV ? '1' : '0'); } catch (e) { }
+        sunDone = false;
+        sync();
+      });
+    }
+  })();
 
   el.masterVol.addEventListener('input', function () {
     if (S.master) S.master.gain.value = parseFloat(el.masterVol.value);
