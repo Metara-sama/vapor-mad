@@ -163,23 +163,29 @@
 
     var env = sm.env;
     if (env && env.length >= 2 && !envIsFlat(env)) {
-      /* 按曲线走：把 env 的归一化时间映射到本音符在采样中的区间 */
-      var span = Math.min(dur * ratio, buf.duration - off);
-      var t0b = off / buf.duration;
-      var t1b = Math.min(1, (off + span) / Math.max(1e-6, buf.duration));
-      var dSpan = Math.max(1e-6, t1b - t0b);
-      var body = Math.max(0.01, dur - atk);
-
-      gn.gain.setValueAtTime(0, when);
-      gn.gain.linearRampToValueAtTime(peak * envAt(env, t0b), when + atk);
-      for (var ei = 0; ei < env.length; ei++) {
-        var et = env[ei][0];
-        if (et <= t0b || et >= t1b) continue;
-        var f = (et - t0b) / dSpan;
-        gn.gain.linearRampToValueAtTime(peak * env[ei][1], when + atk + f * body);
+      /* 曲线按「音符内部进度」走 0 -> 1，
+         这样无论音符只截取采样的一小段，整条曲线都能完整听到 */
+      var N = 64;
+      var curve = new Float32Array(N);
+      for (var ci = 0; ci < N; ci++) {
+        var cvs = envAt(env, ci / (N - 1));
+        if (!isFinite(cvs)) cvs = 1;
+        curve[ci] = Math.max(0.0001, peak * Math.min(1, Math.max(0, cvs)));
       }
-      gn.gain.linearRampToValueAtTime(peak * envAt(env, t1b), when + dur);
-      gn.gain.linearRampToValueAtTime(0, when + dur + 0.015);
+      curve[0] = 0.0001;
+      curve[1] = Math.min(curve[1], peak * 0.12);
+      curve[N - 1] = 0.0001;
+
+      var segEnd = when + Math.max(0.02, dur + 0.008);
+      try {
+        gn.gain.setValueCurveAtTime(curve, when, Math.max(0.02, dur + 0.008));
+      } catch (e) {
+        try { gn.gain.cancelScheduledValues(when); } catch (e2) { }
+        gn.gain.setValueAtTime(0, when);
+        gn.gain.linearRampToValueAtTime(peak, when + atk);
+        gn.gain.setValueAtTime(peak, when + sus);
+        gn.gain.linearRampToValueAtTime(0, when + dur + 0.015);
+      }
     } else {
       gn.gain.setValueAtTime(0, when);
       gn.gain.linearRampToValueAtTime(peak, when + atk);
@@ -789,15 +795,41 @@
     }
   }
 
-  function previewBuffer(buf, rate) {
+  function previewBuffer(buf, rate, env) {
     var ctx = ac();
+    var r = (rate && isFinite(rate) && rate > 0) ? rate : 1;
     var src = ctx.createBufferSource();
     src.buffer = buf;
-    if (rate && isFinite(rate) && rate > 0) src.playbackRate.value = rate;
-    src.connect(S.master);
-    src.start();
+    src.playbackRate.value = r;
+    var t0 = ctx.currentTime + 0.02;
+
+    if (env && env.length >= 2 && !envIsFlat(env)) {
+      var gn = ctx.createGain();
+      var N = 96;
+      var curve = new Float32Array(96);
+      for (var i = 0; i < N; i++) {
+        var v = envAt(env, i / (N - 1));
+        curve[i] = Math.max(0.0001, Math.min(1, v));
+      }
+      try {
+        gn.gain.setValueCurveAtTime(curve, t0, Math.max(0.05, buf.duration / r));
+      } catch (e) {
+        gn.gain.value = 1;
+      }
+      src.connect(gn);
+      gn.connect(S.master);
+      src.start(t0);
+      src.onended = function () {
+        try { gn.disconnect(); } catch (e) { }
+        S.nodes.delete(src);
+      };
+    } else {
+      src.connect(S.master);
+      src.start(t0);
+      src.onended = function () { S.nodes.delete(src); };
+    }
+
     S.nodes.add(src);
-    src.onended = function () { S.nodes.delete(src); };
   }
 
   /* ---------------- 轨道列表 ---------------- */
@@ -913,7 +945,7 @@
     card.classList.add('playing');
     setTimeout(function () { card.classList.remove('playing'); },
       Math.min(1400, s.buffer.duration * 1000));
-    previewBuffer(s.buffer);
+    previewBuffer(s.buffer, s.rate || 1, s.env);
   });
 
 /* ---------------- 音频可视化 ---------------- */
@@ -1978,8 +2010,8 @@ var vizGradIdle = null, vizGradLive = null, vizGradH = -1;
 
     function envUp() {
       if (ENVD.drag < 0) return;
-      /* 短按不动 = 想删？不删，保持简单 */
       ENVD.drag = -1;
+      if (S.playing) startPlayback(S.cursor || 0);
     }
     el.env.addEventListener('pointerup', envUp);
     el.env.addEventListener('pointercancel', envUp);
@@ -2303,7 +2335,7 @@ var vizGradIdle = null, vizGradLive = null, vizGradH = -1;
       }
     }
     stopNodes();
-    previewBuffer(out, WB.sample ? (WB.sample.rate || 1) : 1);
+    previewBuffer(out, WB.sample ? (WB.sample.rate || 1) : 1, WB.sample ? WB.sample.env : null);
   }
 
   el.wbRate.addEventListener('input', function () {
