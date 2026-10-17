@@ -29,6 +29,7 @@
     play: document.getElementById('btnPlay'),
     stop: document.getElementById('btnStop'),
     exp: document.getElementById('btnExport'),
+    btnDemo: document.getElementById('btnDemo'),
     clockCur: document.getElementById('clockCur'),
     clockDur: document.getElementById('clockDur'),
     masterVol: document.getElementById('masterVol'),
@@ -485,6 +486,26 @@
   }
 
   /* ---------------- MIDI ---------------- */
+  /* ============================================================
+     内嵌示例 MIDI（春日影风格 · C 大调 76BPM · 8 小节 · 2 轨）
+     直接写在代码里，不依赖任何外部文件
+     ============================================================ */
+  var DEMO_B64 = 'TVRoZAAAAAYAAQACAeBNVHJrAAABHQCQQ2QAwAAA/wMGTUVMT0RZAP9RAwwL4YNagEMABpBFZIFqgEUABpBDZIFqgEMABpBAZINagEAABpA+ZINagD4ABpA8ZIc6gDwABpBAZINagEAABpBDZINagEMABpBFZINagEUABpBDZIFqgEMABpBAZIFqgEAABpA+ZINagD4ABpA8ZINagDwABpA+ZIsagD4ABpBAZIFqgEAABpBBZIFqgEEABpBAZINagEAABpBDZIFqgEMABpBFZIFqgEUABpBIZINagEgABpBFZINagEUABpBDZIc6gEMABpBAZINagEAABpBDZINagEMABpBFZIVKgEUABpBDZIFqgEMABpBAZINagEAABpA+ZINagD4ABpA8ZI56gDwAAP8vAE1UcmsAAACuAJEwVADBIAD/AwRCQVNThjCBMACBEJE3VIYwgTcAgRCRLVSGMIEtAIEQkTRUhjCBNACBEJEpVIYwgSkAgRCRMFSGMIEwAIEQkStUhjCBKwCBEJEyVIYwgTIAgRCRMFSGMIEwAIEQkTdUhjCBNwCBEJE0VIYwgTQAgRCRO1SGMIE7AIEQkSlUhjCBKQCBEJEwVIYwgTAAgRCRK1SGMIErAIEQkTdUhjCBNwAA/y8A';
+
+  function loadDemoMidi() {
+    try {
+      var bin = atob(DEMO_B64);
+      var len = bin.length;
+      var buf = new ArrayBuffer(len);
+      var u8 = new Uint8Array(buf);
+      for (var i = 0; i < len; i++) u8[i] = bin.charCodeAt(i);
+      applyMidi(MIDI.parse(buf), 'HARUHIKAGE');
+    } catch (e) {
+      console.error(e);
+      toast('DEMO FAIL');
+    }
+  }
+
   function applyMidi(data, name) {
     if (!data.tracks.length) { toast('NO NOTES'); return; }
     var firstSample = null;
@@ -2410,6 +2431,11 @@ var vizGradIdle = null, vizGradLive = null, vizGradH = -1;
     stopPlayback(false);
   });
   el.exp.addEventListener('click', exportWav);
+
+  /* 内嵌示例 MIDI */
+  if (el.btnDemo) {
+    el.btnDemo.addEventListener('click', function () { loadDemoMidi(); });
+  }
 
   /* 背景特效开关 */
   (function () {
