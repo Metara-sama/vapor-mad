@@ -762,6 +762,11 @@ input[type=range]::-moz-range-thumb{width:8px;height:13px;background:var(--pink)
   background:rgba(255,95,184,.14);
 }
 
-/* 关掉动效 */
-.vizwrap.nofx .viz-floor i,
-.vizwrap.nofx .viz-scan{ animation:none !important; }
+/* 关掉：整个蒸汽波场景隐藏，只留波形 */
+.vizwrap.nofx{ background:#04010a; }
+.vizwrap.nofx .viz-sky,
+.vizwrap.nofx .viz-suncv,
+.vizwrap.nofx .viz-mtn,
+.vizwrap.nofx .viz-floor,
+.vizwrap.nofx .viz-horizon,
+.vizwrap.nofx .viz-scan{ display:none !important; }
