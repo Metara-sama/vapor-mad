@@ -2656,6 +2656,15 @@ var vizGradIdle = null, vizGradLive = null, vizGradH = -1;
   updateClock();
   requestAnimationFrame(loop);
 
+  /* 内置示例：打开就有一条能播的曲子，不用点任何按钮 */
+  (function autoDemo() {
+    if (S.tracks.length) return;
+    if (/[?&]midi=/.test(location.search)) return;
+    try {
+      loadDemoMidi();
+    } catch (e) { console.error(e); }
+  })();
+
   /* ---------------- URL 预载：?midi=a.mid&mp3=b.wav,c.mp3 ---------------- */
   (function preloadFromQuery() {
     var q;
