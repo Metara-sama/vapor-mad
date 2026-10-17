@@ -104,7 +104,8 @@
   function ac() {
     if (!S.ctx) {
       var AC = window.AudioContext || window.webkitAudioContext;
-      S.ctx = new AC();
+      try { S.ctx = new AC({ latencyHint: 'playback' }); }
+      catch (e) { S.ctx = new AC(); }
       AU.ctxRef = S.ctx;
       S.master = S.ctx.createGain();
       S.master.gain.value = parseFloat(el.masterVol.value);
@@ -323,7 +324,7 @@
     S.schedTimer = setInterval(function () {
       if (!S.playing) return;
       try { schedNotes(); } catch (e) { }
-    }, 50);
+    }, 40);
     setPlayingUI(true);
   }
 
@@ -332,8 +333,8 @@
     if (!S.playing || !S.ctx) return;
     var ctx = S.ctx;
     var musicNow = S.startMusic + (ctx.currentTime - S.startCtx);
-    var budget = 220;
-    var target = musicNow + 2.5;
+    var budget = 120;
+    var target = musicNow + 1.4;
 
     for (var i = 0; i < S.tracks.length; i++) {
       var t = S.tracks[i];
@@ -908,6 +909,62 @@
   }
 
 var lastVizT = 0;
+
+  /* ============================================================
+     落日：canvas 绘制，扫描线用 destination-out 挖空 -> 透出背后天空
+     ============================================================ */
+  var sunCv = null, sunCtx = null, sunW = 0, sunH = 0, lastSunT = 0, sunGrad = null;
+
+  function drawSun(t) {
+    if (!sunCv) {
+      sunCv = document.querySelector('.viz-suncv');
+      if (!sunCv) return;
+    }
+    var w = sunCv.clientWidth, h = sunCv.clientHeight;
+    if (!w || !h) return;
+    if (w !== sunW || h !== sunH) {
+      var dpr = Math.min(2, window.devicePixelRatio || 1);
+      sunCv.width = Math.round(w * dpr);
+      sunCv.height = Math.round(h * dpr);
+      sunCtx = sunCv.getContext('2d');
+      sunCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      sunW = w; sunH = h;
+      sunGrad = null;
+    }
+    if (!sunCtx) return;
+
+    var W = sunW, H = sunH, g = sunCtx, r = W / 2;
+
+    g.clearRect(0, 0, W, H);
+    g.save();
+    g.beginPath();
+    g.arc(r, r, r - 0.5, 0, Math.PI * 2);
+    g.clip();
+
+    if (!sunGrad) {
+      sunGrad = g.createLinearGradient(0, 0, 0, H);
+      sunGrad.addColorStop(0, '#ffe08a');
+      sunGrad.addColorStop(0.30, '#ffa24a');
+      sunGrad.addColorStop(0.56, '#ff5f78');
+      sunGrad.addColorStop(0.80, '#ff2f92');
+      sunGrad.addColorStop(1, '#e12a92');
+    }
+    g.fillStyle = sunGrad;
+    g.fillRect(0, 0, W, H);
+
+    /* 扫描线：等距 20 条，offset 连续增长（取模周期）=> 无缝下流 */
+    var n = 20;
+    var period = H / n;
+    var barH = period * 0.60;
+    var off = (t * 0.011) % period;
+
+    g.globalCompositeOperation = 'destination-out';
+    for (var y = -period; y < H + period; y += period) {
+      g.fillRect(0, y + off, W, barH);
+    }
+    g.globalCompositeOperation = 'source-over';
+    g.restore();
+  }
 
 var vizGradIdle = null, vizGradLive = null, vizGradH = -1;
   function drawViz() {
@@ -1635,12 +1692,10 @@ var vizGradIdle = null, vizGradLive = null, vizGradH = -1;
       if (S.cursor >= S.duration) {
         S.cursor = 0;
         stopPlayback(true);
-      } else if (S.ctx.currentTime >= S.nextSched) {
-        S.nextSched = S.ctx.currentTime + 0.12;
-        schedNotes();
       }
     }
     drawViz();
+    if (performance.now() - lastSunT >= 50) { lastSunT = performance.now(); drawSun(lastSunT); }
     updateClock();
     requestAnimationFrame(loop);
   }
