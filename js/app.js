@@ -63,6 +63,7 @@
     wbRevert: document.getElementById('wbRevert'),
     wbUndo: document.getElementById('wbUndo'),
     wave: document.getElementById('wave'),
+    env: document.getElementById('env'),
     picker: document.getElementById('picker'),
     pkList: document.getElementById('pkList'),
     pkClose: document.getElementById('pkClose'),
@@ -160,10 +161,31 @@
     var rel = Math.min(0.09, dur * 0.45);
     var sus = Math.max(atk, dur - rel);
 
-    gn.gain.setValueAtTime(0, when);
-    gn.gain.linearRampToValueAtTime(peak, when + atk);
-    gn.gain.setValueAtTime(peak, when + sus);
-    gn.gain.linearRampToValueAtTime(0, when + dur + 0.015);
+    var env = sm.env;
+    if (env && env.length >= 2 && !envIsFlat(env)) {
+      /* 按曲线走：把 env 的归一化时间映射到本音符在采样中的区间 */
+      var span = Math.min(dur * ratio, buf.duration - off);
+      var t0b = off / buf.duration;
+      var t1b = Math.min(1, (off + span) / Math.max(1e-6, buf.duration));
+      var dSpan = Math.max(1e-6, t1b - t0b);
+      var body = Math.max(0.01, dur - atk);
+
+      gn.gain.setValueAtTime(0, when);
+      gn.gain.linearRampToValueAtTime(peak * envAt(env, t0b), when + atk);
+      for (var ei = 0; ei < env.length; ei++) {
+        var et = env[ei][0];
+        if (et <= t0b || et >= t1b) continue;
+        var f = (et - t0b) / dSpan;
+        gn.gain.linearRampToValueAtTime(peak * env[ei][1], when + atk + f * body);
+      }
+      gn.gain.linearRampToValueAtTime(peak * envAt(env, t1b), when + dur);
+      gn.gain.linearRampToValueAtTime(0, when + dur + 0.015);
+    } else {
+      gn.gain.setValueAtTime(0, when);
+      gn.gain.linearRampToValueAtTime(peak, when + atk);
+      gn.gain.setValueAtTime(peak, when + sus);
+      gn.gain.linearRampToValueAtTime(0, when + dur + 0.015);
+    }
 
     src.connect(gn);
     gn.connect(dest);
@@ -767,10 +789,11 @@
     }
   }
 
-  function previewBuffer(buf) {
+  function previewBuffer(buf, rate) {
     var ctx = ac();
     var src = ctx.createBufferSource();
     src.buffer = buf;
+    if (rate && isFinite(rate) && rate > 0) src.playbackRate.value = rate;
     src.connect(S.master);
     src.start();
     S.nodes.add(src);
@@ -1815,6 +1838,164 @@ var vizGradIdle = null, vizGradLive = null, vizGradH = -1;
   }
 
   /* 把工作台草稿同步回采样库 */
+  /* ============================================================
+     音量曲线（可拖动包络）
+     env: [[t0,v0],[t1,v1],...]  t/v 都是 0..1
+     null 表示无曲线（满音量）
+     ============================================================ */
+  function envAt(env, t) {
+    if (!env || env.length < 2) return 1;
+    if (t <= env[0][0]) return env[0][1];
+    var n = env.length;
+    if (t >= env[n - 1][0]) return env[n - 1][1];
+    for (var i = 1; i < n; i++) {
+      if (t <= env[i][0]) {
+        var a = env[i - 1], b = env[i];
+        var d = b[0] - a[0];
+        if (d <= 1e-6) return b[1];
+        var f = (t - a[0]) / d;
+        return a[1] + (b[1] - a[1]) * f;
+      }
+    }
+    return 1;
+  }
+
+  function envIsFlat(env) {
+    if (!env) return true;
+    for (var i = 0; i < env.length; i++) if (Math.abs(env[i][1] - 1) > 0.002) return false;
+    return true;
+  }
+
+  function drawEnv() {
+    var cv = el.env;
+    if (!cv) return;
+    var w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h) return;
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+      cv.width = Math.round(w * dpr);
+      cv.height = Math.round(h * dpr);
+    }
+    var g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+
+    /* 网格 */
+    g.strokeStyle = 'rgba(160,107,255,.13)';
+    g.lineWidth = 1;
+    for (var i = 0; i <= 4; i++) {
+      var y = Math.round(h * i / 4) + .5;
+      g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke();
+    }
+
+    var env = WB.sample && WB.sample.env;
+    var pad = 3;
+    var hh = h - 8;
+
+    function X(t) { return t * w; }
+    function Y(v) { return h - 4 - v * hh; }
+
+    g.beginPath();
+    g.moveTo(0, Y(env ? envAt(env, 0) : 1));
+    for (var x = 0; x <= w; x += 3) {
+      g.lineTo(x, Y(env ? envAt(env, x / w) : 1));
+    }
+    g.strokeStyle = env ? 'rgba(92,255,177,.9)' : 'rgba(160,107,255,.35)';
+    g.lineWidth = 1.4;
+    g.stroke();
+
+    if (env) {
+      g.fillStyle = 'rgba(92,255,177,.10)';
+      g.lineTo(w, h); g.lineTo(0, h); g.closePath();
+      g.fill();
+
+      for (var k = 0; k < env.length; k++) {
+        var px = X(env[k][0]), py = Y(env[k][1]);
+        g.beginPath();
+        g.arc(px, py, 3.4, 0, Math.PI * 2);
+        g.fillStyle = '#8affd2';
+        g.fill();
+        g.strokeStyle = 'rgba(6,2,12,.9)';
+        g.lineWidth = 1.2;
+        g.stroke();
+      }
+    }
+  }
+
+  var ENVD = { drag: -1, down: 0 };
+
+  function envPos(e) {
+    var cv = el.env, r = cv.getBoundingClientRect();
+    var t = (e.clientX - r.left) / Math.max(1, r.width);
+    var v = 1 - (e.clientY - r.top - 4) / Math.max(1, r.height - 8);
+    return { t: clamp(t, 0, 1), v: clamp(v, 0, 1) };
+  }
+
+  function envNearest(p) {
+    var env = WB.sample && WB.sample.env;
+    if (!env) return -1;
+    var best = -1, bd = 1e9;
+    for (var i = 0; i < env.length; i++) {
+      var dx = (env[i][0] - p.t) * 1000;
+      var dy = (env[i][1] - p.v) * 220;
+      var d = dx * dx + dy * dy;
+      if (d < bd) { bd = d; best = i; }
+    }
+    return bd < 14000 ? best : -1;
+  }
+
+  if (el.env) {
+    el.env.addEventListener('pointerdown', function (e) {
+      if (!WB.sample) return;
+      e.preventDefault();
+      var p = envPos(e);
+      if (!WB.sample.env) WB.sample.env = [[0, 1], [1, 1]];
+      var idx = envNearest(p);
+      if (idx < 0) {
+        var env = WB.sample.env;
+        idx = env.length;
+        for (var i = 0; i < env.length; i++) { if (env[i][0] > p.t) { idx = i; break; } }
+        env.splice(idx, 0, [p.t, p.v]);
+      }
+      ENVD.drag = idx;
+      ENVD.down = performance.now();
+      WB.sample.env[idx] = [p.t, p.v];
+      drawEnv();
+      try { el.env.setPointerCapture(e.pointerId); } catch (er) { }
+    });
+
+    el.env.addEventListener('pointermove', function (e) {
+      if (ENVD.drag < 0 || !WB.sample || !WB.sample.env) return;
+      e.preventDefault();
+      var p = envPos(e);
+      var env = WB.sample.env, i = ENVD.drag;
+      /* x 夹在相邻点之间，保持有序 */
+      var lo = (i > 0) ? env[i - 1][0] + 0.004 : 0;
+      var hi = (i < env.length - 1) ? env[i + 1][0] - 0.004 : 1;
+      env[i] = [clamp(p.t, lo, hi), p.v];
+      drawEnv();
+    });
+
+    function envUp() {
+      if (ENVD.drag < 0) return;
+      /* 短按不动 = 想删？不删，保持简单 */
+      ENVD.drag = -1;
+    }
+    el.env.addEventListener('pointerup', envUp);
+    el.env.addEventListener('pointercancel', envUp);
+
+    el.env.addEventListener('dblclick', function (e) {
+      if (!WB.sample || !WB.sample.env) return;
+      var p = envPos(e);
+      var idx = envNearest(p);
+      var env = WB.sample.env;
+      if (idx > 0 && idx < env.length - 1) {
+        env.splice(idx, 1);
+        drawEnv();
+      }
+    });
+  }
+
   function syncSample() {
     if (!WB.sample) return;
     WB.sample.buffer = WB.buf;
@@ -1835,6 +2016,8 @@ var vizGradIdle = null, vizGradLive = null, vizGradH = -1;
     var rt = s.rate || 1;
     if (el.wbRate) el.wbRate.value = rt;
     if (el.wbRateVal) el.wbRateVal.textContent = rt.toFixed(2) + 'x';
+    if (el.wbRate) { el.wbRate.value = rt; }
+    setTimeout(drawEnv, 30);
     el.wb.classList.add('open');
     requestAnimationFrame(function () {
       resizeWave();
@@ -2120,7 +2303,7 @@ var vizGradIdle = null, vizGradLive = null, vizGradH = -1;
       }
     }
     stopNodes();
-    previewBuffer(out);
+    previewBuffer(out, WB.sample ? (WB.sample.rate || 1) : 1);
   }
 
   el.wbRate.addEventListener('input', function () {
@@ -2128,6 +2311,12 @@ var vizGradIdle = null, vizGradLive = null, vizGradH = -1;
     var v = parseFloat(el.wbRate.value) || 1;
     WB.sample.rate = v;
     el.wbRateVal.textContent = v.toFixed(2) + 'x';
+    renderSamples();
+  });
+  el.wbRate.addEventListener('change', function () {
+    if (!WB.sample) return;
+    /* 正在播放时按新倍速重排，立刻听得到变化 */
+    if (S.playing) startPlayback(S.cursor || 0);
   });
 
   el.wbApply.addEventListener('click', wbApply);
