@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0a0410">
 <title>音MAD / VAPOR</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' fill='%230a0410'/><path d='M6 22l4 -14l6 12l4 -14l6 14' stroke='%23ff5fb8' stroke-width='2' fill='none'/></svg>">
-<link rel="stylesheet" href="css/style.css?v=17">
+<link rel="stylesheet" href="css/style.css?v=19">
 </head>
 <body>
 
@@ -38,7 +38,46 @@
 
   <div class="vizwrap">
     <div class="viz-sky"></div>
-    <div class="viz-sun"></div>
+    <div class="viz-sun">
+      <svg viewBox="0 0 200 200">
+        <defs>
+          <linearGradient id="sunG" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#ffe08a"/>
+            <stop offset=".3" stop-color="#ffa24a"/>
+            <stop offset=".56" stop-color="#ff5f78"/>
+            <stop offset=".8" stop-color="#ff2f92"/>
+            <stop offset="1" stop-color="#e12a92"/>
+          </linearGradient>
+          <clipPath id="sunClip"><circle cx="100" cy="100" r="100"/></clipPath>
+        </defs>
+        <circle cx="100" cy="100" r="100" fill="url(#sunG)"/>
+        <g clip-path="url(#sunClip)" fill="#12061f" opacity=".9">
+          <rect x="0" y="12" width="200" height="2.2"/>
+          <rect x="0" y="21" width="200" height="2.6"/>
+          <rect x="0" y="31" width="200" height="3.1"/>
+          <rect x="0" y="42" width="200" height="3.7"/>
+          <rect x="0" y="54" width="200" height="4.4"/>
+          <rect x="0" y="68" width="200" height="5.2"/>
+          <rect x="0" y="84" width="200" height="6.2"/>
+          <rect x="0" y="103" width="200" height="7.4"/>
+          <rect x="0" y="125" width="200" height="8.8"/>
+          <rect x="0" y="150" width="200" height="10.5"/>
+          <rect x="0" y="179" width="200" height="12.5"/>
+        </g>
+      </svg>
+    </div>
+    <div class="viz-mtn">
+      <svg viewBox="0 0 1000 100" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="mtnG" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#3a1252"/>
+            <stop offset="1" stop-color="#170627"/>
+          </linearGradient>
+        </defs>
+        <path d="M0,100 L0,74 Q60,60 118,71 Q168,80 214,64 L246,71 Q300,58 344,70 Q388,80 426,55 L455,70 Q502,50 548,69 L566,57 L592,71 Q646,60 696,74 Q746,85 796,66 Q846,54 894,67 Q944,78 1000,64 L1000,100 Z"
+              fill="url(#mtnG)" stroke="rgba(255,130,200,.28)" stroke-width="1.4" vector-effect="non-scaling-stroke"/>
+      </svg>
+    </div>
     <div class="viz-floor"><i></i></div>
     <div class="viz-horizon"></div>
     <canvas id="viz"></canvas>
@@ -157,8 +196,8 @@
 <div class="scan"></div>
 <div class="vig"></div>
 
-<script src="js/midi.js?v=17"></script>
-<script src="js/audio.js?v=17"></script>
-<script src="js/app.js?v=17"></script>
+<script src="js/midi.js?v=19"></script>
+<script src="js/audio.js?v=19"></script>
+<script src="js/app.js?v=19"></script>
 </body>
 </html>
